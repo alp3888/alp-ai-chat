@@ -48,14 +48,28 @@ const SYSTEM_INSTRUCTION = `
 }
 `;
 
+// リトライ付きGemini呼び出し関数
+async function generateWithRetry(model, promptText, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const result = await model.generateContent(promptText);
+      return result;
+    } catch (err) {
+      if (i === retries) throw err;
+      console.log(`Gemini API呼び出し再試行中 (${i + 1}/${retries})...`);
+      await new Promise(res => setTimeout(res, 1500));
+    }
+  }
+}
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { history, userMessage } = req.body;
 
-const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash',
-  generationConfig: { responseMimeType: 'application/json' }
-});
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
 
     const promptText = `
 ${SYSTEM_INSTRUCTION}
@@ -67,7 +81,7 @@ ${history ? history.map(h => `${h.role}: ${h.text}`).join('\n') : ''}
 user: ${userMessage}
 `;
 
-    const result = await model.generateContent(promptText);
+    const result = await generateWithRetry(model, promptText);
     const responseText = result.response.text();
     const responseData = JSON.parse(responseText);
 
@@ -78,7 +92,7 @@ user: ${userMessage}
     res.json(responseData);
   } catch (error) {
     console.error('API Error Detail:', error);
-    res.status(500).json({ error: '通信エラーが発生しました。' });
+    res.status(500).json({ error: '通信エラーが発生しました。時間をおいて再度お試しください。' });
   }
 });
 
