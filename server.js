@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 if (!process.env.GEMINI_API_KEY) {
-  console.error('【エラー】.env ファイルに GEMINI_API_KEY が設定されていません。');
+  console.error('【エラー】GEMINI_API_KEY が設定されていません。');
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
