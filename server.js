@@ -1,9 +1,11 @@
 const express = require('express');
-const { GoogleGenAI } = require('@google/genai');
+const cors = require('cors');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const dotenv = require('dotenv');
 
 dotenv.config();
 const app = express();
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -11,7 +13,7 @@ if (!process.env.GEMINI_API_KEY) {
   console.error('【エラー】.env ファイルに GEMINI_API_KEY が設定されていません。');
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_INSTRUCTION = `
 あなたは「アドバンスライフプランニング株式会社（https://www.alp-support.co.jp）」の対話型AIコンシェルジュです。
@@ -44,41 +46,33 @@ const SYSTEM_INSTRUCTION = `
   "status": "CONTINUE" | "OWNER_LEAD" | "OTHER_COMPLETE" | "SPAM_REJECT",
   "summary": "OWNER_LEADの場合のご相談要約と持ち家状況（その他はnull）"
 }
-
-- CONTINUE: 対話・ヒアリング継続（目安：4〜6ターン）
-- OWNER_LEAD: 持ち家＋終活悩みのご相談者と確定し、連絡先フォームを出す段階
-- OTHER_COMPLETE: 賃貸の方や他窓口への案内・アドバイスを行って対話を完了する段階
-- SPAM_REJECT: 営業・スパムと判断した場合
 `;
 
 app.post('/api/chat', async (req, res) => {
   try {
     const { history, userMessage } = req.body;
 
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' }
+    });
+
     const promptText = `
 ${SYSTEM_INSTRUCTION}
 
 【これまでの対話履歴】
-${history.map(h => `${h.role}: ${h.text}`).join('\n')}
+${history ? history.map(h => `${h.role}: ${h.text}`).join('\n') : ''}
 
 【ユーザーの最新の発言】
 user: ${userMessage}
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: promptText,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.3
-      }
-    });
-
-    const responseData = JSON.parse(response.text);
+    const result = await model.generateContent(promptText);
+    const responseText = result.response.text();
+    const responseData = JSON.parse(responseText);
 
     if (responseData.status === 'OWNER_LEAD') {
       console.log('【見込み客獲得（持ち家×終活）】要約:', responseData.summary);
-      console.log('対話履歴:', history);
     }
 
     res.json(responseData);
@@ -88,4 +82,5 @@ user: ${userMessage}
   }
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
