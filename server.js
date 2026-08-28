@@ -52,10 +52,10 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { history, userMessage } = req.body;
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: { responseMimeType: 'application/json' }
-    });
+const model = genAI.getGenerativeModel({
+  model: 'gemini-2.5-flash',
+  generationConfig: { responseMimeType: 'application/json' }
+});
 
     const promptText = `
 ${SYSTEM_INSTRUCTION}
